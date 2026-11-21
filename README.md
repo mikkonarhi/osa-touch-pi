@@ -53,7 +53,7 @@ the new one before the installer runs.
 ```bash
 sudo apt install -y git
 cd ~/Documents
-git clone https://github.com/<your-account>/<this-repo>.git osa-touch-pi
+git clone https://github.com/mikkonarhi/osa-touch-pi.git osa-touch-pi
 cd osa-touch-pi
 sudo ./install.sh                  # OSA at GPIB address 1
 ```
