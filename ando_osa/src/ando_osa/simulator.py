@@ -51,6 +51,8 @@ class SimOsa:
         self.traces = {t: ([], []) for t in "ABC"}     # (wavelengths, levels) per trace
         self.mode = {"A": 0, "B": 1, "C": 1}           # A WRITE, B and C FIX after power-on
         self.repeat = False                            # RPT running: sweeps every sweep_time_s
+        self.display = {"A": True, "B": False, "C": False}  # DSP / BLK state per trace
+        self.ignore_mid_sweep = False                  # True: DSP/BLK ignored while sweeping
         self.sweep_time_s = 0.3
         self._last_sweep = 0.0
         self.below_floor_dbm = None                    # e.g. -60: points below it read as -210
@@ -137,6 +139,9 @@ class SimOsa:
                 self._analyze(code)
             elif code in _TRACE_ACTIONS:
                 self._trace_action(*_TRACE_ACTIONS[code])
+            elif code[:3] in ("DSP", "BLK") and len(code) == 4 and code[3] in "ABC":
+                if not self.repeat or not self.ignore_mid_sweep:   # like the OSA: may be ignored mid-sweep
+                    self.display[code[3]] = code[:3] == "DSP"
             return
         try:
             v = float(arg)

@@ -40,7 +40,7 @@ from .errors import OsaError, OsaTimeout
 from .commands import COMMANDS
 from .simulator import SimOsa
 
-GUI_VERSION = "2026-11-19f"       # shown in the status line at start-up and in logs/gui.log
+GUI_VERSION = "2026-11-21a"       # shown in the status line at start-up and in logs/gui.log
 
 # logs/gui.log next to src/: GPIB traffic, errors, touch/mouse events on the plot, input devices
 LOG_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "logs", "gui.log"))
@@ -945,6 +945,7 @@ class MainWindow(QtWidgets.QWidget):
         self._build()
         self.worker.submit(read_state, self._show_settings)
         self.worker.submit(self._read_line_markers, self._set_line_markers)
+        self.worker.submit(self._paused(self._sync_display))
 
     # ---------------------------------------------------------------- layout
     def _build(self):
@@ -1049,8 +1050,22 @@ class MainWindow(QtWidgets.QWidget):
         self.status.setStyleSheet(f"color:{WARN}")
 
     def _on_error(self, msg):
-        self._end_repeat()
+        """A failed job no longer just switches REPEAT off in the GUI: a paused job has already
+        restarted the OSA's REPEAT, and the GUI then thought the OSA was idle. Ask the OSA."""
         self._warn(msg)
+        if self.repeating:
+            self._poll_pending = False
+            self.worker.submit(self._sweep_status, self._resync_repeat)
+
+    def _resync_repeat(self, st):
+        if not self.repeating:
+            return
+        if st == 2:
+            log.info("after an error the OSA is still in REPEAT: continuing")
+            self._poll_repeat()
+        else:
+            log.info("after an error SWEEP? = %s: REPEAT ended", st)
+            self._end_repeat()
 
     def _on_busy(self, b):
         self.b_single.setEnabled(not b or self.repeating)
@@ -1172,13 +1187,41 @@ class MainWindow(QtWidgets.QWidget):
             self._show_traces(traces, sweep=False)
 
     def set_shown(self, t, on):
-        """Show/hide a trace: here on the plot and on the OSA screen (DSPx / BLKx)."""
+        """Show/hide a trace: here on the plot and on the OSA screen (DSPx / BLKx). Sent with the
+        OSA stopped (_paused); if the OSA flags the command, the button goes back."""
         self.shown[t] = on
         if not on:
             self.traces.pop(t, None)
             self._redraw()
         code = ("DSP" if on else "BLK") + t
-        self.trace_action(lambda o: o.send(code), refresh_traces=on)
+
+        def job(o):
+            o.send(code)
+            try:
+                o.check_errors()
+            except OsaError as e:
+                return ("error", str(e))
+            return ("ok", read_state(o), self._read_traces(o, only_changed=False) if on else None)
+        log.info("trace %s -> %s", t, code)
+        self.worker.submit(self._paused(job), lambda r: self._shown_done(t, on, code, r))
+
+    def _shown_done(self, t, on, code, r):
+        if r[0] == "error":
+            self.shown[t] = not on                   # the OSA did not take it: button back
+            if not self.shown[t]:
+                self.traces.pop(t, None)
+            self._redraw()
+            if self.trace_dialog is not None:
+                self.trace_dialog.refresh()
+            return self._warn(f"OSA did not accept {code}: {r[1]}")
+        self._after_trace_action((r[1], r[2]))
+        self._ok(f"trace {t}: {code}")
+
+    def _sync_display(self, o: Osa):
+        """The OSA cannot be asked which traces it displays: make it match the buttons."""
+        codes = [("DSP" if self.shown[t] else "BLK") + t for t in "ABC"]
+        o.send(*codes)
+        log.info("display synced to buttons: %s", ",".join(codes))
 
     def _read_traces(self, o: Osa, only_changed=True):
         """Read the shown traces (worker thread).
@@ -1381,12 +1424,18 @@ class MainWindow(QtWidgets.QWidget):
         self.b_repeat.setText("REPEAT")
 
     def _paused(self, fn):
-        """Wrap a job so that, while REPEAT runs, the OSA is stopped for it and restarted after."""
-        if not self.repeating:
-            return fn
-
+        """Wrap a job so it runs with the OSA not sweeping. Codes received during a sweep may be
+        ignored (manual p. 9-50); in the log DSP/BLK sent mid-sweep left the OSA's display out of
+        step with the buttons. So the OSA is asked (SWEEP?) at run time and stopped if it sweeps -
+        GUI REPEAT or a sweep started on the front panel - and old status bits are cleared, so the
+        job's error check only sees its own command. REPEAT is restarted afterwards."""
         def job(o):
-            o.stop_sweep()
+            st = self._sweep_status(o)
+            if self.repeating or st not in (None, 0):
+                o.stop_sweep()
+                if st not in (None, 0) and not self.repeating:
+                    log.info("OSA was sweeping (SWEEP? = %s): stopped for the command", st)
+            o.status_byte()
             try:
                 return fn(o)
             finally:
@@ -1394,6 +1443,14 @@ class MainWindow(QtWidgets.QWidget):
                     o.repeat_sweep()
                     self._last_sweep_end = self._sweep_period = None   # sweep time may change
         return job
+
+    @staticmethod
+    def _sweep_status(o: Osa):
+        """SWEEP? (0 stop, 1 single, 2 repeat, 3 auto); None if it cannot be read."""
+        try:
+            return int(o.get_sweep_status())
+        except (OsaError, ValueError):
+            return None
 
     def stop(self):
         self._end_repeat()
