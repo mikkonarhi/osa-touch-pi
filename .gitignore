@@ -1,0 +1,21 @@
+# runtime output
+logs/
+**/logs/
+osa_traces/
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# linux-gpib tarball dropped in for an offline install
+installer/linux-gpib-*.tar.gz
+
+# editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store

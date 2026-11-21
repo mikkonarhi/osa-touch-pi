@@ -1,0 +1,14 @@
+[Unit]
+Description=Rebuild the linux-gpib module after a kernel upgrade (ando_osa)
+After=local-fs.target
+Before=gpib-config.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ando-osa-gpib-rebuild
+# a rebuild takes a few minutes on a Pi 4; normal boots return immediately
+TimeoutStartSec=30min
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

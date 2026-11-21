@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ando_osa"
+version = "0.2.0"
+description = "Control ANDO/Yokogawa AQ6315A/B and AQ6317B optical spectrum analyzers over GPIB"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+numpy = ["numpy"]
+visa = ["pyvisa", "pyvisa-py"]
+gui = ["PyQt6", "pyqtgraph", "numpy"]      # the GUI uses PyQt6 (apt: python3-pyqt6 on the Pi)
+dev = ["pytest", "numpy"]
+
+[project.scripts]
+ando-osa-gui = "ando_osa.gui:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

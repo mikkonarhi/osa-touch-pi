@@ -1,0 +1,2 @@
+# ando_osa: let members of the 'gpib' group use the GPIB board without sudo
+KERNEL=="gpib[0-9]*", GROUP="gpib", MODE="0660"

@@ -1,0 +1,27 @@
+/* written by ando_osa install.sh - GPIB4PI on Raspberry Pi (gpib_bitbang driver)
+ * Re-run  sudo ./install.sh --only config --address N  to change the OSA address. */
+interface {
+    minor       = 0                 /* /dev/gpib0 */
+    board_type  = "gpib_bitbang"
+    name        = "raspi_gpio_interface"
+    pad         = 0                 /* the Pi is the controller, address 0 */
+    sad         = 0
+    timeout     = T3s
+    eos         = 0x0a
+    set-reos    = no
+    set-bin     = no
+    set-xeos    = no
+    set-eot     = yes               /* assert EOI with the last byte */
+    master      = yes               /* system controller */
+}
+
+/* the OSA: pad = the instrument's GPIB address (OSA front panel: SYSTEM > MY ADRS) */
+device {
+    minor       = 0
+    name        = "osa"
+    pad         = @OSA_ADDRESS@
+    sad         = 0
+    eos         = 0x0a
+    set-reos    = no
+    set-bin     = no
+}

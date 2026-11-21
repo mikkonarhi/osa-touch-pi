@@ -1,0 +1,15 @@
+[Unit]
+Description=Configure GPIB board 0 (linux-gpib, ando_osa)
+After=systemd-modules-load.service systemd-udevd.service ando-osa-gpib-rebuild.service
+Wants=ando-osa-gpib-rebuild.service
+
+[Service]
+Type=oneshot
+ExecStartPre=-/sbin/modprobe gpib_bitbang
+# wait up to 10 s for udev to create /dev/gpib0
+ExecStartPre=/bin/sh -c 'for i in $(seq 20); do [ -e /dev/gpib0 ] && exit 0; sleep 0.5; done; exit 1'
+ExecStart=/bin/sh -c 'exec "$(command -v gpib_config)" --minor 0 --file /etc/gpib.conf'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

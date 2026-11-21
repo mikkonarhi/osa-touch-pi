@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ANDO OSA
+Comment=Touch-screen control of ANDO AQ6315/AQ6317 optical spectrum analyzers
+Icon=@OSA_DIR@/docs/osa_icon.svg
+Exec=bash @OSA_DIR@/tools/launch_osa.sh
+Terminal=false
+Categories=Education;Science;
+StartupNotify=true

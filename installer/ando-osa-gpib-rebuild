@@ -1,0 +1,27 @@
+#!/bin/bash
+# Boot-time check (ando-osa-gpib-rebuild.service): after a kernel upgrade the out-of-tree
+# gpib_bitbang module is missing for the new kernel. Rebuild it from the source recorded by
+# install.sh, then load it. Does nothing (exits at once) when the module is already there.
+set -euo pipefail
+KVER=$(uname -r)
+if modinfo -k "$KVER" gpib_bitbang >/dev/null 2>&1; then
+    exit 0
+fi
+[ -f /etc/default/ando-osa-gpib ] && . /etc/default/ando-osa-gpib
+SRC=${GPIB_KERNEL_SRC:-}
+if [ -z "$SRC" ] || [ ! -f "$SRC/Makefile" ]; then
+    echo "gpib_bitbang missing for $KVER and no linux-gpib kernel source recorded in /etc/default/ando-osa-gpib"
+    echo "fix: cd <repo> && sudo ./install.sh --only gpib-kernel --force-gpib"
+    exit 1
+fi
+if [ ! -d "/lib/modules/$KVER/build" ]; then
+    echo "no kernel headers for $KVER: sudo apt install linux-headers-$KVER, then reboot"
+    exit 1
+fi
+echo "kernel $KVER has no gpib_bitbang module: rebuilding from $SRC"
+make -C "$SRC" clean >/dev/null 2>&1 || true
+make -C "$SRC" -j"$(nproc)" LINUX_SRCDIR="/lib/modules/$KVER/build"
+make -C "$SRC" install LINUX_SRCDIR="/lib/modules/$KVER/build"
+depmod -a "$KVER"
+modprobe gpib_bitbang
+echo "gpib_bitbang rebuilt and loaded for $KVER"
